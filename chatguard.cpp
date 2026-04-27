@@ -141,8 +141,6 @@ bool isDomain (std::string msg)
 
 bool haveBanWords (std::string msg)
 {
-	std::vector<std::string> message = split(msg, ' ');
-
 	for (int i = 0; i < banwords.size(); i++)
 	{
 		std::string checkBanWord = ToLowerCase(banwords[i]);
@@ -152,7 +150,7 @@ bool haveBanWords (std::string msg)
 		if (std::regex_search(message.c_str(), banWord, std::regex(checkBanWord)))
 		{
 			return true;
-		}	
+		}
 	}
 
 	return false;
