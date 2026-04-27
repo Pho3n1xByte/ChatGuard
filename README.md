@@ -1,4 +1,4 @@
-![GitHub all releases](https://img.shields.io/github/downloads/Сойлогинсюда/VIP_Respawn/total?style=for-the-badge)
+![GitHub all releases](https://img.shields.io/github/downloads/Pho3n1xByte/ChatGuard/total?style=for-the-badge)
 
 ## 📋 Описание плагина
 ChatGuard - плагин для "защиты" вашего чата. Отлавливает сообщение пользователя и проверяет есть ли в сообщении какой-нибудь IP или домен.
