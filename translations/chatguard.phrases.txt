@@ -16,6 +16,11 @@
         "ru"    "{DEFAULT}Похоже в вашем сообщении обнаружился какой-то домен, поэтому ваше сообщение было удалено"
         "en"    "{DEFAULT}It looks like an domain was found in your message, so your message has been deleted"
     }
+    "HaveBanWords"
+    {
+        "ru"    "{DEFAULT}Похоже в вашем сообщении обнаружился какой-то бан-ворд, поэтому ваше сообщение было удалено"
+        "en"    "{DEFAULT}It looks like an ban-word was found in your message, so your message has been deleted"
+    }
     "KickedUser"
     {
         "ru"    "{DEFAULT}Игрок %s был выгнан с сервера связи с подозрением в рекламе"

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sstream>
 #include <regex>
+#include <fstream>
 #include "chatguard.h"
 #include "metamod_oslink.h"
 #include "schemasystem/schemasystem.h"
@@ -18,9 +19,11 @@ IPlayersApi* g_pPlayersApi;
 std::map<std::string, std::string> g_vecPhrases;
 std::vector<std::string> white_list;
 std::vector<std::string> white_list_domain;
+std::vector<std::string> banwords;
 
 bool enableGuardIp;
 bool enableGuardDomain;
+bool enableBanWords;
 std::string regular_ip;
 std::string regular_domain;
 std::string whiteip;
@@ -136,6 +139,25 @@ bool isDomain (std::string msg)
 	else return false;
 }
 
+bool haveBanWords (std::string msg)
+{
+	std::vector<std::string> message = split(msg, ' ');
+
+	for (int i = 0; i < banwords.size(); i++)
+	{
+		std::string checkBanWord = ToLowerCase(banwords[i]);
+		std::cmatch banWord;
+		std::string message = ToLowerCase(msg);
+
+		if (std::regex_search(message.c_str(), banWord, std::regex(checkBanWord)))
+		{
+			return true;
+		}	
+	}
+
+	return false;
+}
+
 CGameEntitySystem* GameEntitySystem()
 {
 	return g_pUtils->GetCGameEntitySystem();
@@ -182,6 +204,7 @@ void LoadConfig ()
 
 	enableGuardIp = config->GetBool("EnableIP", true);
 	enableGuardDomain = config->GetBool("EnableDomain", true);
+	enableBanWords = config->GetBool("EnableBanWords", false);
 	regular_ip = config->GetString("RegularIP", "");
 	regular_domain = config->GetString("RegularDomain", "");
 	whiteip = config->GetString("WhiteListIP", "");
@@ -192,6 +215,26 @@ void LoadConfig ()
 
 	white_list = split(whiteip, ' ');
 	white_list_domain = split(white_domain, ' ');
+}
+
+void LoadBanWords ()
+{
+	char pszPath[256];
+	g_SMAPI->Format(pszPath, sizeof(pszPath), "%s/addons/configs/ChatGuard/BanWords.txt", g_SMAPI->GetBaseDir());
+	std::ifstream file(pszPath);
+	if (!file.is_open())
+	{
+		g_pUtils->ErrorLog("[%s] Failed to load BanWords", g_PLAPI->GetLogTag());
+		return;
+	}
+	std::string line;
+	while (std::getline(file, line))
+	{
+		line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+		line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+		banwords.push_back(line);
+	}
+	file.close();
 }
 
 void LoadPhrases ()
@@ -214,14 +257,13 @@ bool CheckIpInMessage (int iSlot, const char* szContent, bool bTeam)
 {
 	CCSPlayerController* player = CCSPlayerController::FromSlot(iSlot);
 	if (!player) return false;
+	uint64 steamid = g_pPlayersApi->GetSteamID64(iSlot);
+	std::string s_steamid64 = std::to_string(steamid);
 
 	if (enableGuardIp)
 	{
 		if (isIP(szContent))
 		{
-			uint64 steamid = g_pPlayersApi->GetSteamID64(iSlot);
-			std::string s_steamid64 = std::to_string(steamid);
-
 			switch (punish_type)
 			{
 				case 1:
@@ -259,9 +301,6 @@ bool CheckIpInMessage (int iSlot, const char* szContent, bool bTeam)
 	{
 		if (isDomain(szContent))
 		{
-			uint64 steamid = g_pPlayersApi->GetSteamID64(iSlot);
-			std::string s_steamid64 = std::to_string(steamid);
-
 			switch (punish_type)
 			{
 				case 1:
@@ -295,6 +334,43 @@ bool CheckIpInMessage (int iSlot, const char* szContent, bool bTeam)
 			return false;
 		}
 	}
+	if (enableBanWords)
+	{
+		if (haveBanWords(szContent))
+		{
+			switch (punish_type)
+			{
+				case 1:
+				{
+					g_pUtils->PrintToChat(iSlot, "%s %s", g_vecPhrases["Prefix"].c_str(), g_vecPhrases["HaveBanWords"].c_str());
+					break;
+				}
+				case 2:
+				{
+					std::string msgkick = g_vecPhrases["Prefix"] + " " + g_vecPhrases["KickedUser"];
+					g_pUtils->PrintToChatAll(msgkick.c_str(), player->m_iszPlayerName());
+					engine->DisconnectClient(iSlot, NETWORK_DISCONNECT_KICKED);
+					break;
+				}
+				case 3:
+				{
+					std::string copy_cmd = punish_cmd;
+					ReplaceSteam(copy_cmd, "{steamid64}", s_steamid64);
+					engine->ServerCommand(copy_cmd.c_str());
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+			if (writelog)
+			{
+				g_pUtils->LogToFile("ChatGuard", "Похоже %s (SteamID64: %s), написал какой-то бан-ворд. Его сообщение: %s", player->m_iszPlayerName(), s_steamid64.c_str(), szContent);
+			}
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -323,6 +399,10 @@ void Chatguard::AllPluginsLoaded()
 
 	LoadPhrases();
 	LoadConfig();
+	if (enableBanWords)
+	{
+		LoadBanWords();
+	}
 
 	g_pUtils->StartupServer(g_PLID, StartupServer);
 	g_pUtils->AddChatListenerPre(g_PLID, CheckIpInMessage);
@@ -336,7 +416,7 @@ const char* Chatguard::GetLicense()
 
 const char* Chatguard::GetVersion()
 {
-	return "1.1";
+	return "1.2";
 }
 
 const char* Chatguard::GetDate()
