@@ -29,6 +29,16 @@ bool writelog;
 int punish_type;
 std::string punish_cmd;
 
+std::string ToLowerCase (std::string& slovo)
+{
+	std::string newStr = "";
+	for (int i = 0; i < slovo.size(); i++)
+	{
+		newStr += tolower(slovo[i]);
+	}
+	return newStr;
+}
+
 std::vector<std::string> split (std::string msg, char delimiter) 
 {
 	std::vector<std::string> back;
@@ -105,9 +115,12 @@ bool isDomain (std::string msg)
 		if (std::regex_search(checkDomain.c_str(), findDomain, std::regex(regular_domain)))
 		{
 			int countWhiteDomain = 0;
+			std::string str_firstdomain = findDomain[0];
+			std::string str_domain = ToLowerCase(str_firstdomain);
 			for (int j = 0; j < white_list_domain.size(); j++)
 			{
-				if (white_list_domain[j] == findDomain[0])
+				std::string str_whiteDomain = ToLowerCase(white_list_domain[j]);
+				if (str_whiteDomain == str_domain)
 				{
 					countWhiteDomain++;
 				}
