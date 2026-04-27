@@ -323,7 +323,7 @@ const char* Chatguard::GetLicense()
 
 const char* Chatguard::GetVersion()
 {
-	return "1.0";
+	return "1.1";
 }
 
 const char* Chatguard::GetDate()
