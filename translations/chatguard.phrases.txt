@@ -1,0 +1,24 @@
+"Phrases"
+{
+    "Prefix"
+    {
+        "ru"    " {BLUE}[ChatGuard]"
+        "en"    " {BLUE}[ChatGuard]"
+    }
+
+    "HaveIP"
+    {
+        "ru"    "{DEFAULT}Похоже в вашем сообщении обнаружился какой-то IP адрес, поэтому ваше сообщение было удалено"
+        "en"    "{DEFAULT}It looks like an IP address was found in your message, so your message has been deleted"
+    }
+    "HaveDomain"
+    {
+        "ru"    "{DEFAULT}Похоже в вашем сообщении обнаружился какой-то домен, поэтому ваше сообщение было удалено"
+        "en"    "{DEFAULT}It looks like an domain was found in your message, so your message has been deleted"
+    }
+    "KickedUser"
+    {
+        "ru"    "{DEFAULT}Игрок %s был выгнан с сервера связи с подозрением в рекламе"
+        "en"    "{DEFAULT}Player %s was kicked from the server due to suspicion of advertising"
+    }
+}

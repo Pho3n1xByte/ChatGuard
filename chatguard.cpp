@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sstream>
+#include <regex>
 #include "chatguard.h"
 #include "metamod_oslink.h"
 #include "schemasystem/schemasystem.h"
@@ -16,8 +17,14 @@ IPlayersApi* g_pPlayersApi;
 
 std::map<std::string, std::string> g_vecPhrases;
 std::vector<std::string> white_list;
+std::vector<std::string> white_list_domain;
 
+bool enableGuardIp;
+bool enableGuardDomain;
+std::string regular_ip;
+std::string regular_domain;
 std::string whiteip;
+std::string white_domain;
 bool writelog;
 int punish_type;
 std::string punish_cmd;
@@ -57,47 +64,63 @@ void ReplaceSteam (std::string& command, std::string replacement, std::string sw
 bool isIP (std::string msg)
 {
 	std::vector<std::string> message = split(msg, ' ');
+	bool haveAnotherIp = false;
 
 	for (int i = 0; i < message.size(); i++)
 	{
 		std::string checkIp = message[i];
-		bool haveWhiteIp = false;
+		std::cmatch findIp;
 
-		for (int j = 0; j < white_list.size(); j++)
+		if (std::regex_search(checkIp.c_str(), findIp, std::regex(regular_ip)))
 		{
-			if (checkIp == white_list[j])
+			int countWhiteIp = 0;
+			for (int j = 0; j < white_list.size(); j++)
 			{
-				haveWhiteIp = true;
+				if (white_list[j] == findIp[0])
+				{
+					countWhiteIp++;
+				}
 			}
-		}
-
-		if (haveWhiteIp) continue;
-
-		int lastIndex = checkIp.size() - 1;
-		int countPoint = 0;
-		bool hasColon = false;
-
-		for (int j = 0; j < checkIp.size(); j++)
-		{
-			if (checkIp[j] == '.')
+			if (countWhiteIp == 0)
 			{
-				countPoint++;
-				continue;
-			} 
-			if (checkIp[j] == ':')
-			{
-				hasColon = true;
-				continue;
+				haveAnotherIp = true;
 			}
-		}
-
-		if (countPoint == 3 && hasColon) 
-		{
-			return true;
-		}
+		}	
 	}
 
-	return false;
+	if (haveAnotherIp) return true;
+	else return false;
+}
+
+bool isDomain (std::string msg)
+{
+	std::vector<std::string> message = split(msg, ' ');
+	bool haveAnotherDomain = false;
+
+	for (int i = 0; i < message.size(); i++)
+	{
+		std::string checkDomain = message[i];
+		std::cmatch findDomain;
+
+		if (std::regex_search(checkDomain.c_str(), findDomain, std::regex(regular_domain)))
+		{
+			int countWhiteDomain = 0;
+			for (int j = 0; j < white_list_domain.size(); j++)
+			{
+				if (white_list_domain[j] == findDomain[0])
+				{
+					countWhiteDomain++;
+				}
+			}
+			if (countWhiteDomain == 0)
+			{
+				haveAnotherDomain = true;
+			}
+		}	
+	}
+
+	if (haveAnotherDomain) return true;
+	else return false;
 }
 
 CGameEntitySystem* GameEntitySystem()
@@ -144,12 +167,18 @@ void LoadConfig ()
 		return;
 	}
 
+	enableGuardIp = config->GetBool("EnableIP", true);
+	enableGuardDomain = config->GetBool("EnableDomain", true);
+	regular_ip = config->GetString("RegularIP", "");
+	regular_domain = config->GetString("RegularDomain", "");
 	whiteip = config->GetString("WhiteListIP", "");
+	white_domain = config->GetString("WhiteListDomain", "");
 	writelog = config->GetBool("Logs", true);
 	punish_type = config->GetInt("PunishType", 0);
 	punish_cmd = config->GetString("CustomCommand", "");
 
 	white_list = split(whiteip, ' ');
+	white_list_domain = split(white_domain, ' ');
 }
 
 void LoadPhrases ()
@@ -173,42 +202,85 @@ bool CheckIpInMessage (int iSlot, const char* szContent, bool bTeam)
 	CCSPlayerController* player = CCSPlayerController::FromSlot(iSlot);
 	if (!player) return false;
 
-	if (isIP(szContent))
+	if (enableGuardIp)
 	{
-		uint64 steamid = g_pPlayersApi->GetSteamID64(iSlot);
-		std::string s_steamid64 = std::to_string(steamid);
+		if (isIP(szContent))
+		{
+			uint64 steamid = g_pPlayersApi->GetSteamID64(iSlot);
+			std::string s_steamid64 = std::to_string(steamid);
 
-		switch (punish_type)
-		{
-			case 1:
+			switch (punish_type)
 			{
-				g_pUtils->PrintToChat(iSlot, "%s %s", g_vecPhrases["Prefix"].c_str(), g_vecPhrases["HaveIP"].c_str());
-				break;
+				case 1:
+				{
+					g_pUtils->PrintToChat(iSlot, "%s %s", g_vecPhrases["Prefix"].c_str(), g_vecPhrases["HaveIP"].c_str());
+					break;
+				}
+				case 2:
+				{
+					std::string msgkick = g_vecPhrases["Prefix"] + " " + g_vecPhrases["KickedUser"];
+					g_pUtils->PrintToChatAll(msgkick.c_str(), player->m_iszPlayerName());
+					engine->DisconnectClient(iSlot, NETWORK_DISCONNECT_KICKED);
+					break;
+				}
+				case 3:
+				{
+					std::string copy_cmd = punish_cmd;
+					ReplaceSteam(copy_cmd, "{steamid64}", s_steamid64);
+					engine->ServerCommand(copy_cmd.c_str());
+					break;
+				}
+				default:
+				{
+					break;
+				}
 			}
-			case 2:
+			if (writelog)
 			{
-				std::string msgkick = g_vecPhrases["Prefix"] + " " + g_vecPhrases["KickedUser"];
-				g_pUtils->PrintToChatAll(msgkick.c_str(), player->m_iszPlayerName());
-				engine->DisconnectClient(iSlot, NETWORK_DISCONNECT_KICKED);
-				break;
+				g_pUtils->LogToFile("ChatGuard", "Похоже %s (SteamID64: %s), написал какой-то IP адрес. Его сообщение: %s", player->m_iszPlayerName(), s_steamid64.c_str(), szContent);
 			}
-			case 3:
-			{
-				std::string copy_cmd = punish_cmd;
-				ReplaceSteam(copy_cmd, "{steamid64}", s_steamid64);
-				engine->ServerCommand(copy_cmd.c_str());
-				break;
-			}
-			default:
-			{
-				break;
-			}
+			return false;
 		}
-		if (writelog)
+	}
+	if (enableGuardDomain)
+	{
+		if (isDomain(szContent))
 		{
-			g_pUtils->LogToFile("ChatGuard", "Похоже %s (SteamID64: %s), написал какой-то IP адрес. Его сообщение: %s", player->m_iszPlayerName(), s_steamid64.c_str(), szContent);
+			uint64 steamid = g_pPlayersApi->GetSteamID64(iSlot);
+			std::string s_steamid64 = std::to_string(steamid);
+
+			switch (punish_type)
+			{
+				case 1:
+				{
+					g_pUtils->PrintToChat(iSlot, "%s %s", g_vecPhrases["Prefix"].c_str(), g_vecPhrases["HaveDomain"].c_str());
+					break;
+				}
+				case 2:
+				{
+					std::string msgkick = g_vecPhrases["Prefix"] + " " + g_vecPhrases["KickedUser"];
+					g_pUtils->PrintToChatAll(msgkick.c_str(), player->m_iszPlayerName());
+					engine->DisconnectClient(iSlot, NETWORK_DISCONNECT_KICKED);
+					break;
+				}
+				case 3:
+				{
+					std::string copy_cmd = punish_cmd;
+					ReplaceSteam(copy_cmd, "{steamid64}", s_steamid64);
+					engine->ServerCommand(copy_cmd.c_str());
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+			if (writelog)
+			{
+				g_pUtils->LogToFile("ChatGuard", "Похоже %s (SteamID64: %s), написал какой-то домен. Его сообщение: %s", player->m_iszPlayerName(), s_steamid64.c_str(), szContent);
+			}
+			return false;
 		}
-		return false;
 	}
 	return true;
 }
